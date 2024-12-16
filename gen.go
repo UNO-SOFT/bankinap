@@ -7,10 +7,11 @@
 package main
 
 import (
-	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"go/format"
 	"log"
 	"maps"
 	"os"
@@ -79,13 +80,8 @@ func Main() error {
 		}
 	}
 
-	fh, err := renameio.NewPendingFile("downloaded.go")
-	if err != nil {
-		return err
-	}
-	defer fh.Cleanup()
-	bw := bufio.NewWriter(fh)
-	fmt.Fprintf(bw,
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf,
 		`// Generated with download.go on %s. DO NOT EDIT
 
 package bankinap
@@ -96,22 +92,24 @@ var Years = map[uint16]YearDays{
 
 	for _, y := range slices.Sorted(maps.Keys(have)) {
 		Y := have[y]
-		fmt.Fprintf(bw,
+		fmt.Fprintf(&buf,
 			"%d: YearDays{YearURL: YearURL{Year: %d, URL: %q},\nDays: []Day{\n", Y.Year, Y.Year, Y.URL)
 		for _, d := range Y.Days {
-			fmt.Fprintf(bw, "{Date: Date{Year: %d, Month: %d, Day: %d}, Open: %t, Exchange: %t},\n",
+			fmt.Fprintf(&buf, "{Date: Date{Year: %d, Month: %d, Day: %d}, Open: %t, Exchange: %t},\n",
 				d.Date.Year, d.Date.Month, d.Date.Day,
 				d.Open, d.Exchange,
 			)
 		}
-		bw.WriteString("}},\n")
+		buf.WriteString("}},\n")
 	}
 
-	bw.WriteString(`}
+	buf.WriteString(`}
 `)
 
-	if err := bw.Flush(); err != nil {
+	b, err := format.Source(buf.Bytes())
+	if err != nil {
+		os.Stderr.Write(buf.Bytes())
 		return err
 	}
-	return fh.CloseAtomicallyReplace()
+	return renameio.WriteFile("downloaded.go", b, 0644)
 }
