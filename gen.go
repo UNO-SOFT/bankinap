@@ -35,6 +35,11 @@ func main() {
 func Main() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+
+	bux, err := download.SearchBUX(ctx, "")
+	fmt.Println(bux)
+	return err
+
 	yy, err := download.SearchXLSXURL(ctx, "")
 	if err != nil {
 		return err
@@ -95,9 +100,9 @@ var Years = map[uint16]YearDays{
 		fmt.Fprintf(&buf,
 			"%d: YearDays{YearURL: YearURL{Year: %d, URL: %q},\nDays: []Day{\n", Y.Year, Y.Year, Y.URL)
 		for _, d := range Y.Days {
-			fmt.Fprintf(&buf, "{Date: Date{Year: %d, Month: %d, Day: %d}, Open: %t, Exchange: %t},\n",
+			fmt.Fprintf(&buf, "{Date: Date{Year: %d, Month: %d, Day: %d}, Open: %t, Exchange: %t, BUX: %t},\n",
 				d.Date.Year, d.Date.Month, d.Date.Day,
-				d.Open, d.Exchange,
+				d.Open, d.Exchange, d.BUX,
 			)
 		}
 		buf.WriteString("}},\n")

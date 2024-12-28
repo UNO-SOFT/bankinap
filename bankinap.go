@@ -25,6 +25,12 @@ type Day struct {
 	Date     Date
 	Open     bool `json:"Open,omitempty"`
 	Exchange bool `json:"Exchange,omitempty"`
+	BUX      bool
+}
+
+type BUXHoliday struct {
+	Date    Date
+	Comment string
 }
 
 func (d Day) Compare(other Day) int { return d.Date.Compare(other.Date) }

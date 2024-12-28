@@ -37,6 +37,7 @@ func SearchXLSXURL(ctx context.Context, calendarURL string) ([]bankinap.YearURL,
 	if err != nil {
 		return nil, err
 	}
+
 	_, rc, err := DownloadFile(ctx, base.String())
 	if err != nil {
 		return nil, err
