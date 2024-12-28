@@ -6,7 +6,6 @@ package download
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 	"strconv"
 	"time"
@@ -55,7 +54,7 @@ func SearchBUX(ctx context.Context, URL string) ([]bankinap.BUXHoliday, error) {
 				}
 			}
 			if len(fields) == 2 {
-				fmt.Println(i, year, fields[0])
+				// fmt.Println(i, year, fields[0])
 				ii := rMD.FindStringSubmatch(fields[0])
 				var m time.Month
 				switch ii[1][:3] {

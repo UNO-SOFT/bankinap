@@ -37,8 +37,13 @@ func Main() error {
 	defer cancel()
 
 	bux, err := download.SearchBUX(ctx, "")
-	fmt.Println(bux)
-	return err
+	if err != nil {
+		return err
+	}
+	holidays := make(map[bankinap.Date]bankinap.BUXHoliday, len(bux))
+	for _, h := range bux {
+		holidays[h.Date] = h
+	}
 
 	yy, err := download.SearchXLSXURL(ctx, "")
 	if err != nil {
@@ -63,6 +68,11 @@ func Main() error {
 			log.Printf("unmarshal %q: %+v (%d)", di.Name(), err, len(year.Days))
 			continue
 		}
+		for _, d := range year.Days {
+			if _, ok := holidays[d.Date]; ok {
+				d.BUX = true
+			}
+		}
 		have[year.Year] = year
 	}
 
@@ -76,6 +86,16 @@ func Main() error {
 			return err
 		}
 		have[Y.Year] = Y
+	}
+
+	for _, Y := range have {
+		for i, d := range Y.Days {
+			if _, ok := holidays[d.Date]; ok {
+				d.BUX = true
+				Y.Days[i] = d
+			}
+		}
+
 		b, err := json.Marshal(Y)
 		if err != nil {
 			return err
