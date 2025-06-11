@@ -25,7 +25,7 @@ type Day struct {
 	Date     Date
 	Open     bool `json:"Open,omitempty"`
 	Exchange bool `json:"Exchange,omitempty"`
-	BUX      bool
+	BUX      bool `json:"BUX,omitempty"`
 }
 
 type BUXHoliday struct {
