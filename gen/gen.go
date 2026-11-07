@@ -5,23 +5,18 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"go/format"
 	"log"
 	"maps"
 	"os"
 	"os/signal"
 	"slices"
-	"strings"
-	"time"
 
 	"github.com/UNO-SOFT/bankinap"
 	"github.com/UNO-SOFT/bankinap/download"
 
-	"github.com/google/renameio/v2"
+	"github.com/parquet-go/parquet-go"
 )
 
 func main() {
@@ -51,31 +46,12 @@ func Main() error {
 	if len(dis) == 0 && err != nil {
 		return err
 	}
-	have := make(map[uint16]bankinap.YearDays, len(dis))
-	for _, di := range dis {
-		if !strings.HasSuffix(di.Name(), ".json") {
-			continue
-		}
-		b, err := os.ReadFile(di.Name())
-		if err != nil {
-			log.Printf("read %q: %+v", di.Name(), err)
-			continue
-		}
-		var year bankinap.YearDays
-		if err := json.Unmarshal(b, &year); err != nil || len(year.Days) < 365 {
-			log.Printf("unmarshal %q: %+v (%d)", di.Name(), err, len(year.Days))
-			continue
-		}
-		for _, d := range year.Days {
-			if _, ok := holidays[d.Date]; ok {
-				d.BUX = true
-			}
-		}
-		have[year.Year] = year
+	have := bankinap.Years
+	if have == nil {
+		have = make(map[uint16]bankinap.YearDays)
 	}
-
 	for _, y := range yy {
-		if _, ok := have[y.Year]; ok {
+		if days, ok := have[y.Year]; ok && len(days.Days) >= 365 {
 			continue
 		}
 		Y, err := download.Get(ctx, y)
@@ -93,46 +69,21 @@ func Main() error {
 				Y.Days[i] = d
 			}
 		}
-
-		b, err := json.Marshal(Y)
-		if err != nil {
-			return err
-		}
-		if err := renameio.WriteFile(fmt.Sprintf("Y%04d.json", Y.Year), b, 0444); err != nil {
-			return err
-		}
 	}
 
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf,
-		`// Generated with download.go on %s. DO NOT EDIT
-
-package bankinap
-
-var Years = map[uint16]YearDays{
-`,
-		time.Now().UTC().Format(time.RFC3339))
-
+	rows := make([]bankinap.PQDay, 0, len(have)*(365*4+1)/4)
+	opts := append(make([]parquet.WriterOption, 0, 1+len(have)),
+		parquet.Compression(&parquet.Lz4Raw))
 	for _, y := range slices.Sorted(maps.Keys(have)) {
 		Y := have[y]
-		fmt.Fprintf(&buf,
-			"%d: YearDays{YearURL: YearURL{Year: %d, URL: %q},\nDays: []Day{\n", Y.Year, Y.Year, Y.URL)
+		opts = append(opts, parquet.KeyValueMetadata(fmt.Sprintf("%d.url", Y.Year), Y.URL))
 		for _, d := range Y.Days {
-			fmt.Fprintf(&buf, "{Date: Date{Year: %d, Month: %d, Day: %d}, Open: %t, Exchange: %t, BUX: %t},\n",
-				d.Date.Year, d.Date.Month, d.Date.Day,
-				d.Open, d.Exchange, d.BUX,
-			)
+			rows = append(rows, bankinap.PQDay{
+				Date: bankinap.NewPQDate(int(d.Date.Year), d.Date.Month, int(d.Date.Day)),
+				Open: d.Open, Exchange: d.Exchange, BUX: d.BUX,
+			})
 		}
-		buf.WriteString("}},\n")
 	}
 
-	buf.WriteString(`}
-`)
-
-	b, err := format.Source(buf.Bytes())
-	if err != nil {
-		os.Stderr.Write(buf.Bytes())
-		return err
-	}
-	return renameio.WriteFile("downloaded.go", b, 0644)
+	return parquet.WriteFile("downloaded.parquet", rows, opts...)
 }
