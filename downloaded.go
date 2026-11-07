@@ -1,61 +1,75 @@
-// Copyright 2019, 2024 Tamás Gulácsi. All rights reserved.
+// Copyright 2019, 2026 Tamás Gulácsi. All rights reserved.
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package bankinap
 
 import (
-	"bytes"
 	_ "embed"
-	"fmt"
+	"encoding/json"
+	// "fmt"
 	"time"
 
-	"github.com/parquet-go/parquet-go"
+	"github.com/UNO-SOFT/bankinap/rle"
 )
 
-//go:embed downloaded.parquet
-var pqBytes []byte
+//go:embed downloaded.json
+var embedded []byte
 
 var Years map[uint16]YearDays
 
 type (
 	PQDate int32 // days since epoch
 
-	PQDay struct {
-		Date                PQDate `parquet:"date,delta"`
-		Open, Exchange, BUX bool
+	PQYear struct {
+		YearURL
+		Open, Exchange, BUX []byte `json:",omitzero"` // RLE encoded bytes
 	}
 )
 
 func init() {
-	if len(pqBytes) == 0 {
+	if len(embedded) == 0 {
 		return
 	}
-	years := make([]YearURL, 0, 8)
-	f, err := parquet.OpenFile(bytes.NewReader(pqBytes), int64(len(pqBytes)))
-	if err != nil {
-		panic(err)
-	}
-	rows, err := parquet.Read[PQDay](bytes.NewReader(pqBytes), int64(len(pqBytes)))
-
-	Years = make(map[uint16]YearDays, len(years))
-	m := make(map[uint16]*[]Day, len(years))
-	for _, d := range rows {
-		t := d.Date.Time()
-		y := uint16(t.Year())
-		if _, ok := Years[y]; !ok {
-			url, _ := f.Lookup(fmt.Sprintf("%d.url", y))
-			Years[y] = YearDays{
-				YearURL: YearURL{Year: y, URL: url},
-			}
-			days := make([]Day, 0, 366)
-			m[y] = &days
+	yy := make([]PQYear, 0, 8)
+	if err := func() error {
+		if err := json.Unmarshal(embedded, &yy); err != nil {
+			return err
 		}
-		*m[y] = append(*m[y], Day{Date: d.Date.Date()})
-	}
-	for y, Y := range Years {
-		Y.Days = *m[y]
-		Years[y] = Y
+		if Years == nil {
+			Years = make(map[uint16]YearDays, len(yy))
+		}
+		for _, Y := range yy {
+			oo, err := rle.Decode(Y.Open)
+			if err != nil {
+				return err
+			}
+			ee, err := rle.Decode(Y.Exchange)
+			if err != nil {
+				return err
+			}
+			bb, err := rle.Decode(Y.BUX)
+			if err != nil {
+				return err
+			}
+			days := make([]Day, len(oo))
+			dt := NewPQDate(int(Y.Year), time.January, 1)
+			for i := range oo {
+				days[i] = Day{Date: dt.Date(), Open: oo[i], Exchange: ee[i], BUX: bb[i]}
+				dt++
+
+				// if d := days[i]; !d.Open {
+				// 	fmt.Println(d)
+				// }
+			}
+			Years[Y.Year] = YearDays{
+				YearURL: Y.YearURL,
+				Days:    days,
+			}
+		}
+		return nil
+	}(); err != nil {
+		panic(err)
 	}
 }
 

@@ -6,17 +6,16 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"log"
-	"maps"
 	"os"
 	"os/signal"
-	"slices"
 
 	"github.com/UNO-SOFT/bankinap"
 	"github.com/UNO-SOFT/bankinap/download"
+	"github.com/UNO-SOFT/bankinap/rle"
 
-	"github.com/parquet-go/parquet-go"
+	"github.com/google/renameio/v2"
 )
 
 func main() {
@@ -61,7 +60,6 @@ func Main() error {
 		}
 		have[Y.Year] = Y
 	}
-
 	for _, Y := range have {
 		for i, d := range Y.Days {
 			if _, ok := holidays[d.Date]; ok {
@@ -71,19 +69,27 @@ func Main() error {
 		}
 	}
 
-	rows := make([]bankinap.PQDay, 0, len(have)*(365*4+1)/4)
-	opts := append(make([]parquet.WriterOption, 0, 1+len(have)),
-		parquet.Compression(&parquet.Lz4Raw))
-	for _, y := range slices.Sorted(maps.Keys(have)) {
-		Y := have[y]
-		opts = append(opts, parquet.KeyValueMetadata(fmt.Sprintf("%d.url", Y.Year), Y.URL))
+	pqyy := make([]bankinap.PQYear, 0, len(have))
+	oo := make([]bool, 0, 366)
+	ee := make([]bool, 0, 366)
+	bb := make([]bool, 0, 366)
+	for _, Y := range have {
+		oo, ee, bb = oo[:0], ee[:0], bb[:0]
 		for _, d := range Y.Days {
-			rows = append(rows, bankinap.PQDay{
-				Date: bankinap.NewPQDate(int(d.Date.Year), d.Date.Month, int(d.Date.Day)),
-				Open: d.Open, Exchange: d.Exchange, BUX: d.BUX,
-			})
+			oo = append(oo, d.Open)
+			ee = append(ee, d.Exchange)
+			bb = append(bb, d.BUX)
 		}
+		pqyy = append(pqyy, bankinap.PQYear{
+			YearURL:  Y.YearURL,
+			Open:     rle.Encode(oo),
+			Exchange: rle.Encode(ee),
+			BUX:      rle.Encode(bb),
+		})
 	}
-
-	return parquet.WriteFile("downloaded.parquet", rows, opts...)
+	b, err := json.Marshal(pqyy)
+	if err != nil {
+		return err
+	}
+	return renameio.WriteFile("downloaded.json", b, 0444)
 }
