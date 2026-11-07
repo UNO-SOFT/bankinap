@@ -1,6 +1,4 @@
-//go:build ignore
-
-// Copyright 2019, 2024 Tamás Gulácsi. All rights reserved.
+// Copyright 2019, 2026 Tamás Gulácsi. All rights reserved.
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 

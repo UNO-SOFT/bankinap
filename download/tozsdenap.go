@@ -1,4 +1,4 @@
-// Copyright 2024 Tamás Gulácsi. All rights reserved.
+// Copyright 2024, 2026 Tamás Gulácsi. All rights reserved.
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -16,7 +16,7 @@ import (
 	"github.com/UNO-SOFT/bankinap"
 )
 
-const DefaultBETURL = `https://www.bet.hu/aktualis`
+const DefaultBETURL = `https://www.bet.hu/Befektetok/Kereskedes`
 
 func SearchBUX(ctx context.Context, URL string) ([]bankinap.BUXHoliday, error) {
 	logger := zlog.SFromContext(ctx)

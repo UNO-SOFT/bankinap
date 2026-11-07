@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-//go:generate go run gen.go
+//go:generate go run ./gen
 
 type YearURL struct {
 	URL  string
